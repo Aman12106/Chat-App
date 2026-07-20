@@ -1,11 +1,18 @@
 import { Router } from "express";
+import {loginSchema, registerSchema, sendOtpSchema, verifyOtpSchema} from "../validations/auth.validation.js";
+import {validateBody} from "../middleware/validation.js";
+import {handleLogin, handleSignup, handleLogout, sendOtp, verifyOtp, getCurrentUser} from "../controllers/auth.controller.js";
+import {authMiddleware} from "../middleware/auth.js";
 
 const router = Router();
 
-router.get('/login',(req, res) => {
-    return res.json({
-        message: "hit login routes"
-    })
-})
+
+router.post("/login", validateBody(loginSchema), handleLogin );
+router.post("/signup", validateBody(registerSchema), handleSignup );
+router.post("/send-otp", validateBody(sendOtpSchema), sendOtp);
+router.post("/verify-otp", validateBody(verifyOtpSchema), verifyOtp);
+router.post("/logout", handleLogout);
+
+router.get("/me", authMiddleware, getCurrentUser);
 
 export default router;

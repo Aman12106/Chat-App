@@ -6,6 +6,7 @@ import { ENV } from './config/env.js';
 import { connectDB } from './config/db.js';
 import routes from './routes/index.js';
 import cookieParser from 'cookie-parser';
+import { connectRedis } from './config/redis.js';
 
 
 const app = express();
@@ -41,6 +42,7 @@ app.use((err, req, res, next) => {
 
 
 app.listen(ENV.PORT, () => {
+    connectRedis();
     connectDB();
     console.log("Server is running");
 })
