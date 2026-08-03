@@ -18,6 +18,8 @@ redisClient.on("error", (err) => {
 });
 
 redisClient.on("end", () => {
+
+  
   console.log("Redis connection closed");
 });
 
