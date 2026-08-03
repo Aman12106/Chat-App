@@ -9,7 +9,7 @@ export const otpTemplate = (otp) => {
 
             <!-- Header -->
             <div style="background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%); padding: 30px 20px;">
-                <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -1px;">bubbuu 💬</h1>
+                <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -1px;">Bubbuu 💬</h1>
             </div>
 
             <!-- Body -->
@@ -30,7 +30,7 @@ export const otpTemplate = (otp) => {
 
                 <!-- Security Notice -->
                 <p style="color: #9ca3af; font-size: 14px; line-height: 1.5; margin-bottom: 0;">
-                    This code expires in <strong>10 minutes</strong>.<br>
+                    This code expires in <strong>5 minutes</strong>.<br>
                     If you didn't request this, you can safely ignore this email. No one can access your <strong>bubbuu</strong> account without this code.
                 </p>
             </div>

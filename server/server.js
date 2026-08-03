@@ -33,11 +33,22 @@ app.get('/', (req, res) => {
 
 app.use('/api', routes);
 
-app.use((err, req, res, next) => {
-    return res.status(500).json({
+// 404 handler - runs when no route above matched the request.
+app.use((req, res) => {
+    return res.status(404).json({
         success: false,
-        message: err.message
-    })
+        message: `Route ${req.originalUrl} not found`
+    });
+});
+
+// Global exception handler - catches any error that a controller didn't already
+// handle, and always replies with the same clean { success, message } shape.
+app.use((err, req, res, next) => {
+    console.error(err);
+    return res.status(err.status || 500).json({
+        success: false,
+        message: err.message || "Internal server error"
+    });
 })
 
 

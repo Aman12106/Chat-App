@@ -23,6 +23,10 @@ const userSchema = new mongoose.Schema({
     avatar: {
         type: String,
     },
+    isVerified: {
+        type: Boolean,
+        default: false,
+    },
 }, {timestamps: true});
 
 const User = mongoose.model("User", userSchema);

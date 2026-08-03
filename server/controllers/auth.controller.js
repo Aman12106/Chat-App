@@ -1,18 +1,23 @@
-import { login, signup, sendOtpToEmail, verifyEmailOtp, fetchUser } from "../services/auth.service.js";
+import { login, signup, resendOtp, verifyEmailOtp, fetchUser } from "../services/auth.service.js";
 import {generateToken} from "../utils/index.js";
 import { ENV } from "../config/env.js";
+
+// Shared cookie settings for the "token" cookie, used whenever we log a user in.
+const setAuthCookie = (res, token) => {
+    res.cookie("token", token, {
+        httpOnly: true,
+        secure: ENV.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+};
 
 export const handleLogin = async (req, res) => {
     try {
         const { email, password } = req.body;
         const user = await login({ email, password });
         const token = generateToken(user);
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: ENV.NODE_ENV === "production",
-            sameSite: "strict",
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        })
+        setAuthCookie(res, token);
         return res.status(200).json({
             success: true,
             message: "Login successful",
@@ -26,24 +31,17 @@ export const handleLogin = async (req, res) => {
     }
 }
 
+// Creates the account as "unverified" and emails an OTP.
+// The user is NOT logged in yet — that only happens after verifyOtp succeeds.
 export const handleSignup = async (req, res) => {
     try {
         const {name, email, password, phoneNumber} = req.body;
 
-        const user = await signup({name, email, password, phoneNumber});
-
-        const token = generateToken(user);
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: ENV.NODE_ENV === "production",
-            sameSite: "strict",
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        })
+        const result = await signup({name, email, password, phoneNumber});
 
         return res.status(201).json({
             success: true,
-            message: "Signup successful",
-            user
+            message: result.message
         });
     } catch (error) {
         return res.status(error.status || 500).json({
@@ -53,30 +51,36 @@ export const handleSignup = async (req, res) => {
     }
 }
 
+// Lets a user ask for a brand new OTP, e.g. if the previous one expired.
 export const sendOtp = async (req, res) => {
     try {
         const { email } = req.body;
-        const result = await sendOtpToEmail(email);
+        const result = await resendOtp(email);
         return res.status(200).json({
             success: true,
             message: result.message
         });
     } catch (error) {
-        return res.status(error.status || 500).json({   
+        return res.status(error.status || 500).json({
             success: false,
             message: error.message || "Internal server error"
         });
     }
 }
 
-
+// Verifies the OTP, activates the account, and logs the user in automatically.
 export const verifyOtp = async (req, res) => {
     try {
         const { email, otp } = req.body;
-        const result = await verifyEmailOtp(email, otp);
+        const user = await verifyEmailOtp(email, otp);
+
+        const token = generateToken(user);
+        setAuthCookie(res, token);
+
         return res.status(200).json({
             success: true,
-            message: result.message
+            message: "Email verified successfully. You are now logged in.",
+            user
         });
     } catch (error) {
         return res.status(error.status || 500).json({
@@ -98,10 +102,9 @@ export const handleLogout = (req, res) => {
     });
 }
 
-export const getCurrentUser = (req, res) => {
+export const getCurrentUser = async (req, res) => {
     try {
-        const user = req.user;
-        fetchUser(user.id);
+        const user = await fetchUser(req.user.id);
         return res.status(200).json({
             success: true,
             message: "User retrieved successfully",

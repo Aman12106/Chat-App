@@ -1,18 +1,34 @@
 import User from "../models/User.js";
 import * as bcrypt from "bcryptjs";
 import redisClient from "../config/redis.js";
-import {otpTemplate} from "../templates/otp.template.js";
-import {sendEmail} from "../utils/nodemailer.js";
-import {generateOtp} from "../utils/index.js";
+import { otpTemplate } from "../templates/otp.template.js";
+import { sendEmail } from "../utils/nodemailer.js";
+import { generateOtp } from "../utils/index.js";
 
+// OTP is valid for 5 minutes, as required by the "Email + OTP Registration" user story.
+const OTP_EXPIRY_SECONDS = 5 * 60;
 
+// Turns a Mongoose user document into a plain object that is safe to send to the client.
+const toSafeUser = (user) => ({
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    phoneNumber: user.phoneNumber,
+    isVerified: user.isVerified,
+});
+
+// Generates a fresh OTP, saves it in Redis, and emails it to the user.
+const createAndSendOtp = async (email) => {
+    const otp = generateOtp();
+
+    await redisClient.set(email, otp, { EX: OTP_EXPIRY_SECONDS });
+
+    const html = otpTemplate(otp);
+    await sendEmail(email, "Your OTP Code", html);
+};
 
 export const login = async (data) => {
     const { email, password } = data;
-
-    if(!email || !password) {
-        throw { status: 400, message: "Email and password are required" };
-    }
 
     const user = await User.findOne({ email });
     if (!user) {
@@ -24,11 +40,17 @@ export const login = async (data) => {
         throw { status: 401, message: "Invalid email or password" };
     }
 
-    return {name: user.name, email: user.email, id: user._id, phoneNumber: user.phoneNumber};
-}
+    if (!user.isVerified) {
+        throw { status: 403, message: "Please verify your email before logging in. Check your inbox for the OTP." };
+    }
 
+    return toSafeUser(user);
+};
+
+// Creates the account as "unverified" and sends the first OTP.
+// The account only becomes usable once verifyOtp() is called.
 export const signup = async (data) => {
-    const {name, email, password, phoneNumber} = data;
+    const { name, email, password, phoneNumber } = data;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -36,46 +58,65 @@ export const signup = async (data) => {
     }
 
     const hashedPassword = bcrypt.hashSync(password, 10);
-    const user = await User.create({
+    await User.create({
         name,
         email,
         password: hashedPassword,
-        phoneNumber
+        phoneNumber,
+        isVerified: false,
     });
 
-    
-    return {name: user.name, email: user.email, id: user._id, phoneNumber: user.phoneNumber};
-}
+    await createAndSendOtp(email);
 
-export const sendOtpToEmail = async (email) => {
-    const OTP = generateOtp();
+    return { message: "OTP sent to your email. Please verify to activate your account." };
+};
 
-    redisClient.set(email, OTP, 'EX', 600); 
+// Lets a user request a brand new OTP, e.g. because the old one expired.
+export const resendOtp = async (email) => {
+    const user = await User.findOne({ email });
+    if (!user) {
+        throw { status: 404, message: "No account found with this email" };
+    }
 
-    const html = otpTemplate(OTP);
-    await sendEmail(email, "Your OTP Code", html);
-    return {message: "OTP sent successfully" }; 
-}
+    if (user.isVerified) {
+        throw { status: 400, message: "This account is already verified. Please log in." };
+    }
 
+    await createAndSendOtp(email);
+
+    return { message: "OTP sent successfully" };
+};
+
+// Verifies the OTP and, on success, activates the account and returns it so the
+// caller can log the user in automatically.
 export const verifyEmailOtp = async (email, otp) => {
     const storedOtp = await redisClient.get(email);
-    if(!storedOtp) {
-        throw { status: 400, message: "OTP has expired or is invalid" };
+    if (!storedOtp) {
+        throw { status: 400, message: "OTP has expired or is invalid. Please request a new one." };
     }
-    if(storedOtp !== otp) {
+    if (storedOtp !== otp) {
         throw { status: 400, message: "Invalid OTP" };
     }
 
-    redisClient.del(email);
+    await redisClient.del(email);
 
-    return {message: "OTP verified successfully" };
-}
+    const user = await User.findOneAndUpdate(
+        { email },
+        { isVerified: true },
+        { new: true }
+    );
+    if (!user) {
+        throw { status: 404, message: "No account found with this email" };
+    }
+
+    return toSafeUser(user);
+};
 
 export const fetchUser = async (userId) => {
-    const user = await User.findById(userId).select('-password');
+    const user = await User.findById(userId).select("-password");
     if (!user) {
         throw { status: 404, message: "User not found" };
     }
 
-    return user;
-}
+    return toSafeUser(user);
+};

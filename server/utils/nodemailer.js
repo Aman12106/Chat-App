@@ -15,7 +15,7 @@ export const sendEmail = async (to, subject, html) => {
         console.log("SMTP Server is ready.");
 
         const info = await transporter.sendMail({
-            from: `"Your App Name" <${ENV.SMTP_EMAIL}>`,
+            from: `"Bubbuu" <${ENV.SMTP_USER}>`,
             to,
             subject,
             html,
