@@ -1,12 +1,9 @@
 import User from "../models/User.js";
+import Otp from "../models/Otp.js";
 import * as bcrypt from "bcryptjs";
-import redisClient from "../config/redis.js";
 import { otpTemplate } from "../templates/otp.template.js";
 import { sendEmail } from "../utils/nodemailer.js";
 import { generateOtp } from "../utils/index.js";
-
-// OTP is valid for 5 minutes, as required by the "Email + OTP Registration" user story.
-const OTP_EXPIRY_SECONDS = 5 * 60;
 
 // Turns a Mongoose user document into a plain object that is safe to send to the client.
 const toSafeUser = (user) => ({
@@ -17,13 +14,17 @@ const toSafeUser = (user) => ({
     isVerified: user.isVerified,
 });
 
-// Generates a fresh OTP, saves it in Redis, and emails it to the user.
+// Generates a fresh OTP, saves it to the DB (auto-expires after 10 minutes,
+// see the TTL index on Otp.createdAt), and emails it to the user.
 const createAndSendOtp = async (email) => {
     const otp = generateOtp();
 
-    await redisClient.set(email, otp, { EX: OTP_EXPIRY_SECONDS });
+    await Otp.deleteMany({ email });
+    await Otp.create({ email, otp });
 
-    const html = otpTemplate(otp);
+    const html = otpTemplate(otp)
+    console.log("Sending OTP email to:", email);
+    
     await sendEmail(email, "Your OTP Code", html);
 };
 
@@ -74,9 +75,11 @@ export const signup = async (data) => {
 // Lets a user request a brand new OTP, e.g. because the old one expired.
 export const resendOtp = async (email) => {
     const user = await User.findOne({ email });
+    console.log("User found for OTP resend:", user ? user.email : "None", "Verified:", user ? user.isVerified : "N/A");
     if (!user) {
         throw { status: 404, message: "No account found with this email" };
     }
+
 
     if (user.isVerified) {
         throw { status: 400, message: "This account is already verified. Please log in." };
@@ -90,15 +93,15 @@ export const resendOtp = async (email) => {
 // Verifies the OTP and, on success, activates the account and returns it so the
 // caller can log the user in automatically.
 export const verifyEmailOtp = async (email, otp) => {
-    const storedOtp = await redisClient.get(email);
+    const storedOtp = await Otp.findOne({ email }).sort({ createdAt: -1 });
     if (!storedOtp) {
         throw { status: 400, message: "OTP has expired or is invalid. Please request a new one." };
     }
-    if (storedOtp !== otp) {
+    if (storedOtp.otp !== otp) {
         throw { status: 400, message: "Invalid OTP" };
     }
 
-    await redisClient.del(email);
+    await Otp.deleteMany({ email });
 
     const user = await User.findOneAndUpdate(
         { email },

@@ -10,7 +10,6 @@ const envSchema = z.object({
   SECRET_KEY: z.string().nonempty(" SECRET_KEY is required"),
   JWT_EXPIRE: z.string().default("7d"),
   NODE_ENV: z.string().default("development"),
-  REDIS_URL: z.string().nonempty("REDIS_URL is required"),
   SMTP_USER: z.string().nonempty("SMTP_USER is required"),
   SMTP_PASS: z.string().nonempty("SMTP_PASS is required")
  

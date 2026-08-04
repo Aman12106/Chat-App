@@ -9,7 +9,7 @@ const router = Router();
 
 router.post("/login", validateBody(loginSchema), handleLogin );
 router.post("/signup", validateBody(registerSchema), handleSignup );
-router.post("/send-otp", validateBody(sendOtpSchema), sendOtp);
+router.post("/send-otp",  sendOtp);
 router.post("/verify-otp", validateBody(verifyOtpSchema), verifyOtp);
 router.post("/logout", handleLogout);
 

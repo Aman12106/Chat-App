@@ -55,7 +55,9 @@ export const handleSignup = async (req, res) => {
 export const sendOtp = async (req, res) => {
     try {
         const { email } = req.body;
+        
         const result = await resendOtp(email);
+        console.log("Email received for OTP resend:", email);
         return res.status(200).json({
             success: true,
             message: result.message

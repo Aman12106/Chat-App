@@ -6,22 +6,33 @@ import { ENV } from './config/env.js';
 import { connectDB } from './config/db.js';
 import routes from './routes/index.js';
 import cookieParser from 'cookie-parser';
-import { connectRedis } from './config/redis.js';
-
+import {Server} from 'socket.io';
+import http from 'http';
+import  {sockethandler}  from './socket/socketHandler.js';
 
 const app = express();
-
+const server = http.createServer(app);
 // middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({
-    origin: ["http://localhost:5173"]
+    origin: ["http://localhost:5173"],
+    credentials:true,
+    methods : ['GET','POST']
 }))
 app.use(morgan('dev'));
-app.use(helmet());
+// app.use(helmet());
 app.use(cookieParser());
 
+const io = new Server(server, {
+    cors: {
+        origin: ["http://localhost:5173"],
+        methods: ["GET", "POST"],
+        credentials: true
+    }
+});
 
+sockethandler(io);
 
 app.get('/', (req, res) => {
     return res.status(200).json({
@@ -52,8 +63,9 @@ app.use((err, req, res, next) => {
 })
 
 
-app.listen(ENV.PORT, () => {
-    connectRedis();
+
+
+server.listen(ENV.PORT, () => {
     connectDB();
     console.log("Server is running");
 })
